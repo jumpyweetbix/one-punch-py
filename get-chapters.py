@@ -78,7 +78,7 @@ class Downloader:
         self.dir = dir
 
     def getChapDir(self, num):
-        chap_dir = "{}/chapter-{}/".format(self.dir, num)
+        chap_dir = "{}/".format(self.dir)
 
         if not os.path.exists(chap_dir):
             os.makedirs(chap_dir)
