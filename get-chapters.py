@@ -4,7 +4,9 @@ import os
 from PIL import Image
 from io import BytesIO
 import time
-
+import math
+from scipy.spatial import distance as dist
+import bisect
 
 class Page:
     def __init__(self, url):
@@ -30,13 +32,16 @@ class Page:
         try:
             image_urls = self.getImageUrls()
             images = []
-
+            seen = []
             for i in range(0, len(image_urls)):
-                progress = "  working%s" % (i*".")
-                print(progress+"\r", end="")
-                images.append(self.getImage(image_urls[i]))
+                if (image_urls[i] not in seen):
+                    progress = "  working%s" % (i*".")
+                    print(progress+"\r", end="")
 
-            print("Got images from %s!"%self.url)
+                    images.append(self.getImage(image_urls[i]))
+                    seen.append(image_urls[i])
+
+            print("Got %d images from %s" % (len(images), self.url))
             return images
 
         except:
@@ -49,12 +54,31 @@ class Chapter:
         self.num = num
         self.dir = dir
 
+    def compareImages(self, hist1, hist2):
+        d = dist.cityblock(hist1, hist2)
+
+        return(d < 90000)
+        
     def getImageFiles(self):
         page = Page(self.url)
         images = page.getImages()
         img_files = []
+        first = True
         for image in images:
-            img_files.append(Image.open(BytesIO(image.content)).convert('RGB'))
+            img = Image.open(BytesIO(image.content)).convert('RGB')
+            img_hist = img.histogram()
+            if first:
+                seen = img_hist
+                first = False
+                img_files.append(img)
+                continue
+
+            result = self.compareImages(img_hist, seen)
+            if(not result):
+                img_files.append(img)
+                seen = img_hist
+            else:
+                print("skipping image - too similar to previous")
 
         return(img_files)
 
@@ -66,13 +90,14 @@ class Chapter:
 
         try:
             img_files[0].save(save_dir, "PDF", resolution=100.0,
-                              save_all=True, append_images=img_files[0:])
+                              save_all=True, append_images=img_files[1:])
             del img_files
             os.system('cls')
 
         except:
-            raise ValueError(
-                "Failed to save chapter {}".format(self.num))
+            print("No chapter saved")
+            # raise ValueError(
+            #     "Failed to save chapter {}".format(self.num))
 
 
 
