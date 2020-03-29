@@ -5,6 +5,7 @@ from PIL import Image
 from io import BytesIO
 import time
 
+
 class Page:
     def __init__(self, url):
         self.url = url
@@ -35,7 +36,7 @@ class Page:
                 print(progress+"\r", end="")
                 images.append(self.getImage(image_urls[i]))
 
-            print("Done! Crafting pdf")
+            print("Got images from %s!"%self.url)
             return images
 
         except:
@@ -53,7 +54,7 @@ class Chapter:
         images = page.getImages()
         img_files = []
         for image in images:
-            img_files.append(Image.open(BytesIO(image.content)))
+            img_files.append(Image.open(BytesIO(image.content)).convert('RGB'))
 
         return(img_files)
 
@@ -62,6 +63,7 @@ class Chapter:
 
         img_files = self.getImageFiles()
         save_dir = "%sopm-%s.pdf" % (self.dir, self.num)
+
         try:
             img_files[0].save(save_dir, "PDF", resolution=100.0,
                               save_all=True, append_images=img_files[0:])
@@ -71,6 +73,7 @@ class Chapter:
         except:
             raise ValueError(
                 "Failed to save chapter {}".format(self.num))
+
 
 
 class Downloader:
@@ -85,10 +88,17 @@ class Downloader:
 
         return(chap_dir)
 
+    def getCombinedDir(self):
+        comb_dir = "{}/".format(self.dir)
+        if not os.path.exists(comb_dir):
+            os.makedirs(comb_dir)
+
+        return(comb_dir)
+
     def getChapNum(self, url):
         pat = r'chapter-(.+)\/'
-        num = re.findall(pat, url)
-        return(num[0])
+        num = re.findall(pat, url)[0]
+        return(num)
 
     def downloadChapter(self, url):
         num = self.getChapNum(url)
@@ -96,11 +106,11 @@ class Downloader:
         chapter = Chapter(url, num, chap_dir)
         chapter.getChapter()
 
-    def downloadChaptersBetween(self, min, max):
-        print("Downloading chapters {} to {}".format(min, max))
+    def getChaptersBetween(self, min, max):
         chapter_urls = self.getChapterUrls()
-        seen=[]
-        count=0
+        seen = []
+        wanted_urls = []
+
         for chap_url in chapter_urls:
             num = self.getChapNum(chap_url)
             if not chap_url in seen:
@@ -112,14 +122,45 @@ class Downloader:
                 num = re.findall(r'\d+', num)[0]
 
             if (min <= int(num) and int(num) <= max):
-                print("Getting %s" % chap_url)
-                self.downloadChapter(chap_url)
-                count+=1
+                wanted_urls.append(chap_url)
 
-        return count
+        return sorted(wanted_urls)
+
+
+    def getPdfBetween(self, min, max):
+        img_files = []
+        urls = self.getChaptersBetween(min, max)
+        print("Combining %d chapters"%len(urls))
+        for url in urls:
+            num = self.getChapNum(url)
+            dir = self.getChapDir(num)
+            chapter = Chapter(url, num, dir)
+            img_files = img_files + chapter.getImageFiles()
+        
+        save_dir = "%sopm-%sto%s.pdf" % (self.getCombinedDir(), min, max)
+
+        try:
+            img_files[0].save(save_dir, "PDF", resolution=100.0,
+                                save_all=True, append_images=img_files[0:])
+            del img_files
+            os.system('cls')
+            print("Finished! Combined %d chapters"%len(urls))
+            return len(urls)
+        except:
+            raise ValueError("Failed to download mass PDF")
+
+    def downloadChaptersBetween(self, min, max):
+        print("Downloading chapters {} to {}".format(min, max))
+        chapter_urls = self.getChaptersBetween(min, max)
+        for url in chapter_urls:
+            print("Getting %s" % url)
+            self.downloadChapter(url)
+
+        return len(chapter_urls)
 
     def getChapterUrl(self, num):
-        url = 'https://ww3.one-punchman.com/manga/one-punch-man-chapter-%d/'%(num)
+        url = 'https://ww3.one-punchman.com/manga/one-punch-man-chapter-%d/' % (
+            num)
         return url
 
     def getChapterUrls(self):
@@ -127,6 +168,7 @@ class Downloader:
         pattern = r'(https\:\/\/ww3.+chapter-.+)\">'
         chapter_urls = re.findall(pattern, page)
         return chapter_urls[::-1]
+
 
 class DownloadManager:
     def __init__(self, dir):
@@ -143,7 +185,8 @@ class DownloadManager:
     def doUserAction(self, resp):
         downloader = Downloader(self.dir)
         if(resp == 1):
-            url_num = self.getInputAsNum('What chapter number would you like to download?\n')
+            url_num = self.getInputAsNum(
+                'What chapter number would you like to download?\n')
             url = downloader.getChapterUrl(url_num)
             start = time.time()
             downloader.downloadChapter(url)
@@ -151,27 +194,49 @@ class DownloadManager:
             print("Downloaded 1 chapter in {} seconds".format(round((stop), 2)))
 
         elif(resp == 2):
-            print("This option lets you download all the chapters between a minimum and maximum value")
-            min = self.getInputAsNum("What's the lowest chapter number you'd like to download?\n")
-            max = self.getInputAsNum("What's the highest chapter number you'd like to download?\n")
+            print(
+                "This option lets you download all the chapters between a minimum and maximum value")
+            min = self.getInputAsNum(
+                "What's the lowest chapter number you'd like to download?\n")
+            max = self.getInputAsNum(
+                "What's the highest chapter number you'd like to download?\n")
             start = time.time()
             count = downloader.downloadChaptersBetween(min, max)
             stop = time.time() - start
-            print("Downloaded {} chapters in {} seconds".format(count, round((stop), 2)))
+            if stop > 120:
+                print("Downloaded {} chapters in {} minutes".format(
+                    count, round((stop/60), 2)))
+            else:
+                print("Downloaded {} chapters in {} seconds".format(
+                    count, round((stop), 2)))
         elif(resp == 3):
+            print("This option lets you download all chapters between a minimum and maximum value\nand puts the chapters into a single PDF")
+            min = self.getInputAsNum(
+                "What's the lowest chapter number you'd like to download?\n")
+            max = self.getInputAsNum(
+                "What's the highest chapter number you'd like to download?\n")
+            start = time.time()
+            count = downloader.getPdfBetween(min, max)
+            stop = time.time() - start
+            if stop > 120:
+                print("Downloaded {} chapters in {} minutes".format(
+                    count, round((stop/60), 2)))
+            else:
+                print("Downloaded {} chapters in {} seconds".format(
+                    count, round((stop), 2)))
+        elif(resp == 4):
             print("Bye!")
-        else: 
+        else:
             print("That won't work. Please make a valid choice")
-
 
     def writeMenu(self):
         while(True):
-            print("Welcome to One-Punch-Py\n1: Download a single chapter\n2: Download many chapters\n3: Quit")
+            print("Welcome to One-Punch-Py\n1: Download a single chapter\n2: Download many chapters\n3: Download many chapters into a single PDF\n4: Quit")
             resp = self.getInputAsNum("Please make a choice: ")
             self.doUserAction(resp)
-            if(resp == 3):
+            if(resp == 4):
                 break
 
 
-directory = './files'
+directory = './all-chapters'
 DownloadManager(directory).writeMenu()
