@@ -123,6 +123,7 @@ class Downloader:
         chap_dir = "{}/{}/".format(self.dir, self.comic_name)
 
         if not os.path.exists(chap_dir):
+            print("making directory")
             os.makedirs(chap_dir)
 
         return(chap_dir)
@@ -195,6 +196,9 @@ class Downloader:
             print("Finished! Combined %d chapters"%len(urls))
             return len(urls)
         except:
+            # If this exception is being raised, check this url in your browser
+            # https://w16.one-punchman.com/
+            # If it is different, you will need to change all occurences in the script (the website that is being scraped seems to change domain occasionally)
             raise ValueError("Failed to download mass PDF")
 
     #   Downloads chapters between a minimum and maximum value
@@ -209,28 +213,30 @@ class Downloader:
 
     #   Returns a chapter url given the chapter number
     def getOnePunchChapterUrl(self, num):
-        url = 'https://ww3.one-punchman.com/manga/one-punch-man-chapter-%d/' % (
+        url = 'https://w16.one-punchman.com/manga/one-punch-man-chapter-%d/' % (
             num)
         return url
 
     #   Returns a list of all chapter urls.
     def getOnePunchChapterUrls(self):
-        page = requests.get('https://ww3.one-punchman.com/').text
-        # pattern = r'(https\:\/\/ww3.+chapter-\S+)\">'
-        pattern = r'href=\"(https\:\/\/ww3\S+chapter-\S+)/'
+        page = requests.get('https://w16.one-punchman.com/').text
+        # pattern = r'(https\:\/\/w16.+chapter-\S+)\">'
+        pattern = r'href=\"(https\:\/\/w16\S+chapter-\S+)/'
         chapter_urls = re.findall(pattern, page)
         del page
         return chapter_urls
 
-    def getComicChapterUrls(self):
-        page = requests.get('https://viewcomics.me/comic/{}'.format(self.comic_name)).text
-        pattern = r'(https\S+{}\S+)\"'.format(self.comic_name)
-        chapter_urls = re.findall(pattern, page)
-        for idx in range(0,len(chapter_urls)):
-            chapter_urls[idx] = '{}/full'.format(chapter_urls[idx])
 
-        del page
-        return chapter_urls
+    # currently working to expand functionality and allow the easy scraping of other comics
+    # def getComicChapterUrls(self):
+    #     page = requests.get('https://viewcomics.me/comic/{}'.format(self.comic_name)).text
+    #     pattern = r'(https\S+{}\S+)\"'.format(self.comic_name)
+    #     chapter_urls = re.findall(pattern, page)
+    #     for idx in range(0,len(chapter_urls)):
+    #         chapter_urls[idx] = '{}/full'.format(chapter_urls[idx])
+
+    #     del page
+    #     return chapter_urls
 
 class DownloadManager:
     def __init__(self, dir):
@@ -246,6 +252,7 @@ class DownloadManager:
 
     def doUserAction(self, resp):
         downloader = Downloader(self.dir, 'one-punch-man')
+
         if(resp == 1):
             url_num = self.getInputAsNum(
                 'What chapter number would you like to download?\n')
@@ -271,6 +278,7 @@ class DownloadManager:
             else:
                 print("Downloaded {} chapters in {} seconds".format(
                     count, round((stop), 2)))
+
         elif(resp == 3):
             print("This option lets you download all chapters between a minimum and maximum value\nand puts the chapters into a single PDF")
             min = self.getInputAsNum(
@@ -301,8 +309,5 @@ class DownloadManager:
 
 
 directory = './all-chapters'
-test = Downloader(directory, 'extraordinary-x-men')
-test.downloadChaptersBetween(1, 5)
-# for url in url_list:
-#     test.downloadChapter(url)
-# DownloadManager(directory).writeMenu()
+
+DownloadManager(directory).writeMenu()
